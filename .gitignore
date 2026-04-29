@@ -1,0 +1,12 @@
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+Thumbs.db
+*.out
+*.swo
+coverage.txt
+vendor/
+*.prof
+*.swp
