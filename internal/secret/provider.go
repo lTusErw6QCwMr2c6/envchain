@@ -1,22 +1,13 @@
 package secret
 
-import "context"
-
 // Provider defines the interface for secret backends.
-// Implementations include keyring, env, vault, and AWS Secrets Manager.
 type Provider interface {
-	// Set stores a secret value for the given profile and key.
-	Set(ctx context.Context, profile, key, value string) error
-
-	// Get retrieves a secret value for the given profile and key.
-	// Returns an error if the secret does not exist.
-	Get(ctx context.Context, profile, key string) (string, error)
-
-	// Delete removes the secret for the given profile and key.
-	Delete(ctx context.Context, profile, key string) error
+	Get(key string) (string, error)
+	Set(key, value string) error
+	Delete(key string) error
 }
 
-// ProviderType enumerates supported secret backends.
+// ProviderType identifies which backend to use.
 type ProviderType string
 
 const (
@@ -24,14 +15,19 @@ const (
 	ProviderKeyring ProviderType = "keyring"
 	ProviderVault   ProviderType = "vault"
 	ProviderAWS     ProviderType = "aws"
+	ProviderDoppler ProviderType = "doppler"
 )
 
-// ErrNotFound is returned when a secret does not exist in the backend.
+// ErrNotFound is returned when a secret key does not exist in the backend.
 type ErrNotFound struct {
-	Profile string
-	Key     string
+	Key string
 }
 
-func (e *ErrNotFound) Error() string {
-	return "secret not found: profile=" + e.Profile + " key=" + e.Key
+func (e ErrNotFound) Error() string {
+	return "secret not found: " + e.Key
+}
+
+func (e ErrNotFound) Is(target error) bool {
+	_, ok := target.(ErrNotFound)
+	return ok
 }
