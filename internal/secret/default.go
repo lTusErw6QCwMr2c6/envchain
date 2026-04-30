@@ -46,6 +46,17 @@ func DefaultProvider() (Provider, error) {
 		return NewDopplerProvider(token, project, config), nil
 
 	default:
-		return nil, fmt.Errorf("unknown provider type: %q", providerType)
+		return nil, fmt.Errorf("unknown provider type: %q (supported: env, keyring, vault, aws, doppler)", providerType)
+	}
+}
+
+// AvailableProviders returns a list of all supported provider type strings.
+func AvailableProviders() []ProviderType {
+	return []ProviderType{
+		ProviderEnv,
+		ProviderKeyring,
+		ProviderVault,
+		ProviderAWS,
+		ProviderDoppler,
 	}
 }
