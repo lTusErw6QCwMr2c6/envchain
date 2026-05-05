@@ -1,55 +1,53 @@
-// Package profile manages environment variable profiles for envchain.
 package profile
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 )
 
-var validNameRe = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
-
-// ErrInvalidName is returned when a profile name contains invalid characters.
-var ErrInvalidName = errors.New("profile name must match [a-zA-Z0-9_-]")
-
-// ErrDuplicateVar is returned when a variable is defined more than once.
-var ErrDuplicateVar = errors.New("duplicate variable in profile")
+var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // Var represents a single environment variable entry in a profile.
 type Var struct {
-	Key    string `toml:"key"`
-	Value  string `toml:"value,omitempty"`
-	Secret bool   `toml:"secret,omitempty"`
-	Ref    string `toml:"ref,omitempty"` // secret store reference e.g. "vault:secret/myapp#DB_PASS"
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
-// Profile holds a named collection of environment variables.
+// Profile holds a named set of environment variables and an optional chain
+// of parent profile names whose variables are merged before this profile's own.
 type Profile struct {
-	Name    string   `toml:"name"`
-	Extends []string `toml:"extends,omitempty"`
-	Vars    []Var    `toml:"vars"`
+	Name  string   `json:"name"`
+	Chain []string `json:"chain,omitempty"`
+	Vars  []Var    `json:"vars"`
 }
 
-// Validate checks that the profile is well-formed.
+// Validate returns an error if the profile has an invalid name or duplicate keys.
 func (p *Profile) Validate() error {
-	if !validNameRe.MatchString(p.Name) {
-		return ErrInvalidName
+	if !validName.MatchString(p.Name) {
+		return fmt.Errorf("invalid profile name %q: must match %s", p.Name, validName)
 	}
-	seen := make(map[string]struct{}, len(p.Vars))
+	seen := map[string]bool{}
 	for _, v := range p.Vars {
-		if _, exists := seen[v.Key]; exists {
-			return ErrDuplicateVar
+		if seen[v.Key] {
+			return fmt.Errorf("duplicate variable key %q in profile %q", v.Key, p.Name)
 		}
-		seen[v.Key] = struct{}{}
+		seen[v.Key] = true
 	}
 	return nil
 }
 
-// ToEnvMap converts the profile's vars into a key→value map.
-// Secret vars with no resolved Value are included with an empty string.
-func (p *Profile) ToEnvMap() map[string]string {
-	env := make(map[string]string, len(p.Vars))
-	for _, v := range p.Vars {
-		env[v.Key] = v.Value
+// ToEnvMap converts the profile's variables to a plain map.
+func (p *Profile) ToEnvMap() (map[string]string, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
 	}
-	return env
+	m := make(map[string]string, len(p.Vars))
+	for _, v := range p.Vars {
+		m[v.Key] = v.Value
+	}
+	return m, nil
 }
+
+// ErrProfileNotFound is returned when a requested profile does not exist.
+var ErrProfileNotFound = errors.New("profile not found")
