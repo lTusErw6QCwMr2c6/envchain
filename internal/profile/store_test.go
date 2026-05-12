@@ -62,3 +62,21 @@ func TestStore_Save_InvalidProfile(t *testing.T) {
 	err := s.Save(p)
 	require.Error(t, err)
 }
+
+func TestStore_SaveAndLoad_Idempotent(t *testing.T) {
+	// Saving the same profile twice should not produce an error and the
+	// second load should reflect the most recently saved state.
+	s := newTempStore(t)
+	p := &profile.Profile{
+		Name: "staging",
+		Vars: []profile.Var{{Key: "APP_ENV", Value: "staging"}},
+	}
+	require.NoError(t, s.Save(p))
+
+	p.Vars = append(p.Vars, profile.Var{Key: "LOG_LEVEL", Value: "debug"})
+	require.NoError(t, s.Save(p))
+
+	loaded, err := s.Load("staging")
+	require.NoError(t, err)
+	assert.Equal(t, p.Vars, loaded.Vars)
+}
