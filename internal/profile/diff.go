@@ -1,62 +1,46 @@
 package profile
 
-import "fmt"
+import "sort"
 
-// DiffKind represents the type of change in a diff entry.
-type DiffKind string
-
-const (
-	DiffAdded   DiffKind = "added"
-	DiffRemoved DiffKind = "removed"
-	DiffChanged DiffKind = "changed"
-)
-
-// DiffEntry represents a single variable-level change between two profiles.
-type DiffEntry struct {
-	Key  string
-	Kind DiffKind
-	Old  string // empty for added entries
-	New  string // empty for removed entries
+// DiffResult describes the difference between two variable maps.
+type DiffResult struct {
+	Added   []string // keys present in new but not old
+	Removed []string // keys present in old but not new
+	Changed []string // keys present in both but with different values
 }
 
-func (d DiffEntry) String() string {
-	switch d.Kind {
-	case DiffAdded:
-		return fmt.Sprintf("+ %s=%s", d.Key, d.New)
-	case DiffRemoved:
-		return fmt.Sprintf("- %s=%s", d.Key, d.Old)
-	case DiffChanged:
-		return fmt.Sprintf("~ %s: %s -> %s", d.Key, d.Old, d.New)
-	default:
-		return fmt.Sprintf("? %s", d.Key)
+// DiffProfiles computes the diff between two profiles' variable sets.
+func DiffProfiles(old, new *Profile) DiffResult {
+	oldMap := make(map[string]string, len(old.Vars))
+	for _, v := range old.Vars {
+		oldMap[v.Key] = v.Value
 	}
+	newMap := make(map[string]string, len(new.Vars))
+	for _, v := range new.Vars {
+		newMap[v.Key] = v.Value
+	}
+	return diffMaps(oldMap, newMap)
 }
 
-// DiffProfiles compares two profiles and returns a list of variable-level
-// differences. The comparison is based on variable names and values only;
-// metadata fields such as Name, Description, and Parents are ignored.
-func DiffProfiles(base, target *Profile) []DiffEntry {
-	baseMap := base.ToEnvMap()
-	targetMap := target.ToEnvMap()
+// diffMaps is the shared implementation used by DiffProfiles and DiffPin.
+func diffMaps(oldMap, newMap map[string]string) DiffResult {
+	var result DiffResult
 
-	var entries []DiffEntry
-
-	// Find removed or changed keys.
-	for k, oldVal := range baseMap {
-		newVal, ok := targetMap[k]
-		if !ok {
-			entries = append(entries, DiffEntry{Key: k, Kind: DiffRemoved, Old: oldVal})
+	for k, newVal := range newMap {
+		if oldVal, ok := oldMap[k]; !ok {
+			result.Added = append(result.Added, k)
 		} else if oldVal != newVal {
-			entries = append(entries, DiffEntry{Key: k, Kind: DiffChanged, Old: oldVal, New: newVal})
+			result.Changed = append(result.Changed, k)
+		}
+	}
+	for k := range oldMap {
+		if _, ok := newMap[k]; !ok {
+			result.Removed = append(result.Removed, k)
 		}
 	}
 
-	// Find added keys.
-	for k, newVal := range targetMap {
-		if _, ok := baseMap[k]; !ok {
-			entries = append(entries, DiffEntry{Key: k, Kind: DiffAdded, New: newVal})
-		}
-	}
-
-	return entries
+	sort.Strings(result.Added)
+	sort.Strings(result.Removed)
+	sort.Strings(result.Changed)
+	return result
 }
